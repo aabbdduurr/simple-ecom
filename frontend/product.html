@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Product Detail</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 1rem;
+      }
+      .product-images img {
+        max-width: 100%;
+        margin-bottom: 1rem;
+      }
+      a {
+        text-decoration: none;
+        color: blue;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="product-detail"></div>
+    <a href="index.html">Back to Products</a>
+
+    <script>
+      const API_BASE = "http://localhost:3000/api";
+
+      function getQueryParam(param) {
+        const params = new URLSearchParams(window.location.search);
+        return params.get(param);
+      }
+
+      async function fetchProduct() {
+        const productId = getQueryParam("id");
+        if (!productId) return;
+        try {
+          const response = await fetch(`${API_BASE}/products/${productId}`);
+          if (!response.ok) {
+            document.getElementById("product-detail").innerHTML =
+              "Product not found.";
+            return;
+          }
+          const product = await response.json();
+          const container = document.getElementById("product-detail");
+          container.innerHTML = `
+          <h1>${product.name}</h1>
+          <div class="product-images">
+            ${product.images
+              .map((img) => `<img src="${img}" alt="${product.name}">`)
+              .join("")}
+          </div>
+          <p>${product.description}</p>
+          <p>Price: $${product.price}</p>
+          <a href="checkout.html?productId=${product.id}">Buy Now</a>
+        `;
+        } catch (error) {
+          console.error("Error fetching product:", error);
+        }
+      }
+
+      fetchProduct();
+    </script>
+  </body>
+</html>

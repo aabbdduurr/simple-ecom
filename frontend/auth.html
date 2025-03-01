@@ -1,0 +1,83 @@
+<!-- frontend/auth.html -->
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>OTP Authentication</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 1rem;
+      }
+      input,
+      button {
+        padding: 0.5rem;
+        margin: 0.5rem 0;
+        width: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>OTP Authentication</h1>
+    <div>
+      <label for="identifier">Phone or Email:</label>
+      <input
+        type="text"
+        id="identifier"
+        placeholder="Enter your phone or email"
+      />
+    </div>
+    <button onclick="sendOtp()">Send OTP</button>
+
+    <div id="otp-section" style="display: none">
+      <label for="otp">Enter OTP:</label>
+      <input type="text" id="otp" placeholder="Enter OTP" />
+      <button onclick="verifyOtp()">Verify OTP</button>
+    </div>
+
+    <div id="result"></div>
+    <a href="index.html">Back to Products</a>
+
+    <script>
+      const API_BASE = "http://localhost:3000/api";
+
+      async function sendOtp() {
+        const identifier = document.getElementById("identifier").value;
+        if (!identifier) {
+          alert("Please enter a phone or email.");
+          return;
+        }
+        try {
+          const response = await fetch(`${API_BASE}/auth/otp`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ phone: identifier, email: identifier }),
+          });
+          const result = await response.json();
+          document.getElementById("result").innerText = JSON.stringify(result);
+          document.getElementById("otp-section").style.display = "block";
+        } catch (error) {
+          console.error("Error sending OTP:", error);
+        }
+      }
+
+      async function verifyOtp() {
+        const identifier = document.getElementById("identifier").value;
+        const otp = document.getElementById("otp").value;
+        try {
+          const response = await fetch(`${API_BASE}/auth/verify`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ identifier, otp }),
+          });
+          const result = await response.json();
+          document.getElementById("result").innerText = JSON.stringify(result);
+        } catch (error) {
+          console.error("Error verifying OTP:", error);
+        }
+      }
+    </script>
+  </body>
+</html>
