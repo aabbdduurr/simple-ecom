@@ -1,53 +1,56 @@
-const db = require("../models/db");
+const db = require("../db");
 
-exports.createOrder = (req, res) => {
-  const { customerIdentifier, cart } = req.body;
+exports.checkout = async (req, res) => {
+  const { identifier } = req.body;
+  if (!identifier)
+    return res.status(400).json({ error: "Identifier required" });
+  try {
+    // Find the customer and their active cart
+    const customerRes = await db.query(
+      "SELECT * FROM customers WHERE identifier = $1",
+      [identifier]
+    );
+    if (customerRes.rows.length === 0)
+      return res.status(400).json({ error: "Customer not found" });
+    const customer = customerRes.rows[0];
+    const cartRes = await db.query(
+      "SELECT * FROM carts WHERE customer_id = $1",
+      [customer.id]
+    );
+    if (cartRes.rows.length === 0)
+      return res.status(400).json({ error: "No active cart found" });
+    const cart = cartRes.rows[0];
+    const itemsRes = await db.query(
+      `SELECT ci.*, p.price FROM cart_items ci
+       JOIN products p ON ci.product_id = p.id
+       WHERE ci.cart_id = $1`,
+      [cart.id]
+    );
+    const items = itemsRes.rows;
+    if (items.length === 0)
+      return res.status(400).json({ error: "Cart is empty" });
 
-  if (
-    !customerIdentifier ||
-    !cart ||
-    !Array.isArray(cart) ||
-    cart.length === 0
-  ) {
-    return res.status(400).json({ error: "Invalid order data." });
+    // Create a new order
+    const orderRes = await db.query(
+      "INSERT INTO orders (customer_id) VALUES ($1) RETURNING *",
+      [customer.id]
+    );
+    const order = orderRes.rows[0];
+
+    // Insert each item as an order item
+    for (let item of items) {
+      await db.query(
+        "INSERT INTO order_items (order_id, product_id, quantity, price) VALUES ($1, $2, $3, $4)",
+        [order.id, item.product_id, item.quantity, item.price]
+      );
+    }
+
+    // Clear the cart after checkout
+    await db.query("DELETE FROM cart_items WHERE cart_id = $1", [cart.id]);
+
+    res.json({ success: true, orderId: order.id, status: order.status });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
   }
-
-  // Find or create customer (using phone or email as identifier)
-  let customer = db.customers.find((c) => c.identifier === customerIdentifier);
-  if (!customer) {
-    customer = {
-      id: db.customers.length + 1,
-      identifier: customerIdentifier,
-      createdAt: new Date(),
-    };
-    db.customers.push(customer);
-  }
-
-  const order = {
-    id: db.orders.length + 1,
-    customerId: customer.id,
-    cart,
-    status: "pending",
-    createdAt: new Date(),
-  };
-  db.orders.push(order);
-
-  res.json({ success: true, orderId: order.id, status: order.status });
-};
-
-exports.getOrder = (req, res) => {
-  const { customerIdentifier, orderId } = req.query;
-  const order = db.orders.find((o) => o.id === parseInt(orderId));
-
-  if (!order) {
-    return res.status(404).json({ error: "Order not found." });
-  }
-
-  // Verify that the customer requesting the order owns it
-  const customer = db.customers.find((c) => c.id === order.customerId);
-  if (customer.identifier !== customerIdentifier) {
-    return res.status(403).json({ error: "Unauthorized access." });
-  }
-
-  res.json(order);
 };
