@@ -1,44 +1,21 @@
-const { exec } = require("child_process");
-const fs = require("fs");
-const path = require("path");
-const db = require("./src/db/index");
-require("dotenv").config();
-
-/**
- * Runs the database migrations by invoking the "migrate:up" script.
- */
-function runMigrations() {
-  return new Promise((resolve, reject) => {
-    exec("npm run migrate:up", (error, stdout, stderr) => {
-      if (error) {
-        console.error("Migration error:", error);
-        console.error(stderr);
-        return reject(error);
-      }
-      console.log("Migrations output:", stdout);
-      resolve();
-    });
-  });
-}
-
-async function initDB() {
-  try {
-    // Run migrations as part of the init DB flow
-    await runMigrations();
-    console.log("Migrations ran successfully.");
-
-    // Insert test data after migrations have applied
-    await insertTestData();
-
-    console.log("Test data inserted successfully.");
-    process.exit(0);
-  } catch (error) {
-    console.error("Error initializing database:", error);
-    process.exit(1);
-  }
-}
-
 async function insertTestData() {
+  // Remove existing data
+  await db.query("DELETE FROM order_items");
+  await db.query("DELETE FROM orders");
+  await db.query("DELETE FROM cart_items");
+  await db.query("DELETE FROM carts");
+  await db.query("DELETE FROM customers");
+  await db.query("DELETE FROM product_images");
+  await db.query("DELETE FROM products");
+  await db.query("DELETE FROM categories");
+
+  // Reset ID sequences
+  await db.query("ALTER SEQUENCE customers_id_seq RESTART WITH 1");
+  await db.query("ALTER SEQUENCE orders_id_seq RESTART WITH 1");
+  await db.query("ALTER SEQUENCE categories_id_seq RESTART WITH 1");
+  await db.query("ALTER SEQUENCE products_id_seq RESTART WITH 1");
+  await db.query("ALTER SEQUENCE order_items_id_seq RESTART WITH 1");
+
   // Insert sample categories
   const categories = ["Electronics", "Books", "Clothing", "Home", "Toys"];
   for (const cat of categories) {
@@ -51,7 +28,7 @@ async function insertTestData() {
   // Retrieve inserted categories with their IDs
   const { rows: categoryRows } = await db.query("SELECT * FROM categories");
 
-  // Create 100 products with random stock and status, referencing categories via category_id
+  // Create 100 products
   for (let i = 1; i <= 100; i++) {
     const catIndex = i % categoryRows.length;
     const category = categoryRows[catIndex];
@@ -68,31 +45,36 @@ async function insertTestData() {
     );
   }
 
-  // Insert sample customers
-  const customers = [
-    { identifier: "customer1@example.com" },
-    { identifier: "customer2@example.com" },
-    { identifier: "customer3@example.com" },
+  // Insert sample customers and retrieve their assigned IDs
+  const customerEmails = [
+    "customer1@example.com",
+    "customer2@example.com",
+    "customer3@example.com",
   ];
-  for (const customer of customers) {
-    await db.query(
-      "INSERT INTO customers (identifier) VALUES ($1) ON CONFLICT (identifier) DO NOTHING",
-      [customer.identifier]
+
+  let customerIds = [];
+  for (const email of customerEmails) {
+    const res = await db.query(
+      "INSERT INTO customers (identifier) VALUES ($1) RETURNING id",
+      [email]
     );
+    customerIds.push(res.rows[0].id);
   }
 
-  // Create orders for each customer (each order includes 10 random products)
-  for (let i = 0; i < customers.length; i++) {
-    const customerId = i + 1; // Assuming sequential customer IDs
+  // Create orders for each customer
+  for (const customerId of customerIds) {
     await db.query("INSERT INTO orders (customer_id, status) VALUES ($1, $2)", [
       customerId,
       "completed",
     ]);
+
     // Retrieve the latest order ID
     const { rows: orderRows } = await db.query(
-      "SELECT id FROM orders ORDER BY id DESC LIMIT 1"
+      "SELECT id FROM orders WHERE customer_id = $1 ORDER BY id DESC LIMIT 1",
+      [customerId]
     );
     const orderId = orderRows[0].id;
+
     // Select 10 random products for the order
     const { rows: products } = await db.query(
       "SELECT id, price FROM products ORDER BY random() LIMIT 10"
@@ -105,5 +87,3 @@ async function insertTestData() {
     }
   }
 }
-
-initDB();

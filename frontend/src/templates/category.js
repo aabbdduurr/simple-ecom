@@ -1,26 +1,52 @@
 import React from "react";
 import { Link } from "gatsby";
-import Layout from "../components/Layout";
 
-const Category = ({ pageContext }) => {
-  const { category, products } = pageContext;
+const CategoryPage = ({ pageContext }) => {
+  const { categoryName, products, currentPage, totalPages } = pageContext;
 
   return (
-    <Layout>
-      <h1>Category: {category}</h1>
-      <div>
+    <div>
+      <h1>Category: {categoryName}</h1>
+      <div className="product-list">
         {products.map((product) => (
-          <div key={product.id} style={{ marginBottom: "20px" }}>
-            <Link to={`/product/${product.id}`}>
-              <h2>{product.name}</h2>
-            </Link>
+          <div key={product.id} className="product-item">
+            <h3>
+              <Link to={`/product/${product.id}`}>{product.name}</Link>
+            </h3>
             <p>{product.description}</p>
-            <p>Price: ${product.price}</p>
+            <p>${product.price}</p>
           </div>
         ))}
       </div>
-    </Layout>
+
+      {/* Pagination Links */}
+      <div className="pagination">
+        {currentPage > 1 && (
+          <Link
+            to={
+              currentPage === 2
+                ? `/category/${categoryName.toLowerCase()}`
+                : `/category/${categoryName.toLowerCase()}/page/${
+                    currentPage - 1
+                  }`
+            }
+          >
+            Previous
+          </Link>
+        )}
+
+        {currentPage < totalPages && (
+          <Link
+            to={`/category/${categoryName.toLowerCase()}/page/${
+              currentPage + 1
+            }`}
+          >
+            Next
+          </Link>
+        )}
+      </div>
+    </div>
   );
 };
 
-export default Category;
+export default CategoryPage;
