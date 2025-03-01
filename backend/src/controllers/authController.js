@@ -1,4 +1,6 @@
 const db = require("../db");
+const jwt = require("jsonwebtoken");
+require("dotenv").config();
 
 exports.sendOtp = async (req, res) => {
   const { phone, email } = req.body;
@@ -9,13 +11,12 @@ exports.sendOtp = async (req, res) => {
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
   const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes from now
   try {
-    // Remove any existing OTPs for this identifier
     await db.query("DELETE FROM otps WHERE identifier = $1", [identifier]);
     await db.query(
       "INSERT INTO otps (identifier, otp, expires_at) VALUES ($1, $2, $3)",
       [identifier, otp, expiresAt]
     );
-    // Mock OTP send (replace with Twilio/SendGrid later)
+    // Mock OTP send (replace with real SMS/Email service)
     console.log(`Mock: Sending OTP ${otp} to ${identifier}`);
     res.json({ success: true, message: "OTP sent (mock)" });
   } catch (err) {
@@ -27,7 +28,7 @@ exports.sendOtp = async (req, res) => {
 exports.verifyOtp = async (req, res) => {
   const { identifier, otp } = req.body;
   if (!identifier || !otp) {
-    return res.status(400).json({ error: "Identifier and OTP are required" });
+    return res.status(400).json({ error: "Identifier and OTP are required." });
   }
   try {
     const otpRes = await db.query(
@@ -39,7 +40,12 @@ exports.verifyOtp = async (req, res) => {
     const otpEntry = otpRes.rows[0];
     if (new Date() > otpEntry.expires_at)
       return res.status(400).json({ error: "OTP expired" });
-    res.json({ success: true, message: "OTP verified" });
+
+    // Generate JWT token for stateless authentication
+    const token = jwt.sign({ identifier }, process.env.JWT_SECRET, {
+      expiresIn: "1h",
+    });
+    res.json({ success: true, message: "OTP verified", token });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });
