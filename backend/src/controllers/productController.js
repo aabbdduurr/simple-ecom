@@ -2,8 +2,19 @@ const db = require("../db");
 
 exports.getAllProducts = async (req, res) => {
   try {
-    const result = await db.query("SELECT * FROM products ORDER BY id");
+    const { category } = req.query;
+    let query = "SELECT * FROM products";
+    const params = [];
+
+    if (category) {
+      query += " WHERE category = $1";
+      params.push(category);
+    }
+
+    query += " ORDER BY id";
+    const result = await db.query(query, params);
     const products = result.rows;
+
     // For each product, retrieve images
     for (let product of products) {
       const imagesRes = await db.query(

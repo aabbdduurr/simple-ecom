@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS products (
   name VARCHAR(255) NOT NULL,
   description TEXT,
   price NUMERIC(10,2) NOT NULL,
+  category VARCHAR(255) NOT NULL,  -- new category field
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

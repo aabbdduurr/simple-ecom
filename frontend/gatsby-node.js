@@ -1,12 +1,13 @@
 exports.createPages = async ({ actions }) => {
   const { createPage } = actions;
-  // Example static product data
+
   const products = [
     {
       id: 1,
       name: "Product One",
       description: "Description for Product One",
       price: 29.99,
+      category: "Electronics",
       images: ["https://via.placeholder.com/400?text=Product+One+Image+1"],
     },
     {
@@ -14,6 +15,7 @@ exports.createPages = async ({ actions }) => {
       name: "Product Two",
       description: "Description for Product Two",
       price: 49.99,
+      category: "Books",
       images: ["https://via.placeholder.com/400?text=Product+Two+Image+1"],
     },
   ];
@@ -23,6 +25,16 @@ exports.createPages = async ({ actions }) => {
       path: `/product/${product.id}`,
       component: require.resolve("./src/templates/product.js"),
       context: product,
+    });
+  });
+
+  // Optionally, create category pages
+  const categories = [...new Set(products.map((p) => p.category))];
+  categories.forEach((category) => {
+    createPage({
+      path: `/category/${category.toLowerCase()}`,
+      component: require.resolve("./src/templates/category.js"),
+      context: { category },
     });
   });
 };
