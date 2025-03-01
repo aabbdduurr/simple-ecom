@@ -1,89 +1,106 @@
+const { exec } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 const db = require("./src/db/index");
 require("dotenv").config();
 
-const MAX_RETRIES = 5;
-const RETRY_DELAY = 5000; // 5 seconds
+/**
+ * Runs the database migrations by invoking the "migrate:up" script.
+ */
+function runMigrations() {
+  return new Promise((resolve, reject) => {
+    exec("npm run migrate:up", (error, stdout, stderr) => {
+      if (error) {
+        console.error("Migration error:", error);
+        console.error(stderr);
+        return reject(error);
+      }
+      console.log("Migrations output:", stdout);
+      resolve();
+    });
+  });
+}
 
-async function initDB(retries = 0) {
+async function initDB() {
   try {
-    const schemaPath = path.join(__dirname, "schema.sql");
-    const schema = fs.readFileSync(schemaPath, "utf8");
-    await db.query(schema);
-    console.log("Database initialized successfully.");
+    // Run migrations as part of the init DB flow
+    await runMigrations();
+    console.log("Migrations ran successfully.");
 
-    // Insert test data
+    // Insert test data after migrations have applied
     await insertTestData();
 
     console.log("Test data inserted successfully.");
     process.exit(0);
   } catch (error) {
-    if (retries < MAX_RETRIES) {
-      console.error(
-        `Error initializing database. Retrying in ${
-          RETRY_DELAY / 1000
-        } seconds...`,
-        error
-      );
-      setTimeout(() => initDB(retries + 1), RETRY_DELAY);
-    } else {
-      console.error("Error initializing database:", error);
-      process.exit(1);
-    }
+    console.error("Error initializing database:", error);
+    process.exit(1);
   }
 }
 
 async function insertTestData() {
+  // Insert sample categories
   const categories = ["Electronics", "Books", "Clothing", "Home", "Toys"];
+  for (const cat of categories) {
+    await db.query(
+      "INSERT INTO categories (name, status) VALUES ($1, $2) ON CONFLICT (name) DO NOTHING",
+      [cat, "active"]
+    );
+  }
+
+  // Retrieve inserted categories with their IDs
+  const { rows: categoryRows } = await db.query("SELECT * FROM categories");
+
+  // Create 100 products with random stock and status, referencing categories via category_id
+  for (let i = 1; i <= 100; i++) {
+    const catIndex = i % categoryRows.length;
+    const category = categoryRows[catIndex];
+    await db.query(
+      "INSERT INTO products (name, description, price, category_id, stock_qty, status) VALUES ($1, $2, $3, $4, $5, $6)",
+      [
+        `Product ${i}`,
+        `Description for product ${i}`,
+        (Math.random() * 100).toFixed(2),
+        category.id,
+        Math.floor(Math.random() * 100),
+        "active",
+      ]
+    );
+  }
+
+  // Insert sample customers
   const customers = [
     { identifier: "customer1@example.com" },
     { identifier: "customer2@example.com" },
     { identifier: "customer3@example.com" },
   ];
-  const products = [];
-
-  // Generate 100 products
-  for (let i = 1; i <= 100; i++) {
-    const category = categories[i % categories.length];
-    products.push({
-      name: `Product ${i}`,
-      description: `Description for product ${i}`,
-      price: (Math.random() * 100).toFixed(2),
-      category,
-    });
-  }
-
-  // Insert products
-  for (const product of products) {
+  for (const customer of customers) {
     await db.query(
-      "INSERT INTO products (name, description, price, category) VALUES ($1, $2, $3, $4)",
-      [product.name, product.description, product.price, product.category]
+      "INSERT INTO customers (identifier) VALUES ($1) ON CONFLICT (identifier) DO NOTHING",
+      [customer.identifier]
     );
   }
 
-  // Insert customers
-  for (const customer of customers) {
-    await db.query("INSERT INTO customers (identifier) VALUES ($1)", [
-      customer.identifier,
-    ]);
-  }
-
-  // Insert orders for customers
+  // Create orders for each customer (each order includes 10 random products)
   for (let i = 0; i < customers.length; i++) {
-    const customerId = i + 1; // Assuming the customer IDs are sequential starting from 1
+    const customerId = i + 1; // Assuming sequential customer IDs
     await db.query("INSERT INTO orders (customer_id, status) VALUES ($1, $2)", [
       customerId,
       "completed",
     ]);
-
-    // Insert order items
-    const orderId = i + 1; // Assuming the order IDs are sequential starting from 1
-    const orderItems = products.slice(i * 10, (i + 1) * 10); // 10 products per order
-    for (const item of orderItems) {
+    // Retrieve the latest order ID
+    const { rows: orderRows } = await db.query(
+      "SELECT id FROM orders ORDER BY id DESC LIMIT 1"
+    );
+    const orderId = orderRows[0].id;
+    // Select 10 random products for the order
+    const { rows: products } = await db.query(
+      "SELECT id, price FROM products ORDER BY random() LIMIT 10"
+    );
+    for (const product of products) {
       await db.query(
         "INSERT INTO order_items (order_id, product_id, quantity, price) VALUES ($1, $2, $3, $4)",
-        [orderId, item.id, 1, item.price]
+        [orderId, product.id, 1, product.price]
       );
     }
   }
