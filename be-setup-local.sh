@@ -22,7 +22,12 @@ echo "Waiting for PostgreSQL to initialize..."
 # Wait for a few seconds to allow PostgreSQL to be ready. Adjust time if needed.
 sleep 10
 
-# Optional: run the DB initialization script in the backend container manually if needed
+echo "Running database migrations..."
+# Run migrations automatically inside the backend container
+docker-compose exec backend npm run migrate:up
+
+echo "Running database initialization script..."
+# Optionally run the DB initialization script in the backend container if needed
 docker-compose exec backend node init_db.js
 
 echo "Containers are up and running."
