@@ -52,12 +52,15 @@ CREATE TABLE IF NOT EXISTS cart_items (
   quantity INTEGER NOT NULL DEFAULT 1
 );
 
--- Create Orders Table
+-- Create Orders Table with additional billing and shipping info
 CREATE TABLE IF NOT EXISTS orders (
   id SERIAL PRIMARY KEY,
   customer_id INTEGER REFERENCES customers(id),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  status VARCHAR(50) DEFAULT 'pending'
+  status VARCHAR(50) DEFAULT 'pending',
+  payment_method VARCHAR(50),
+  billing_info JSON,
+  shipping_info JSON
 );
 
 -- Create Order Items Table

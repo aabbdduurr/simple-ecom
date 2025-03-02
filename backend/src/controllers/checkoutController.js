@@ -11,16 +11,21 @@ async function processThirdPartyPayment(paymentDetails) {
 }
 
 exports.processCheckout = async (req, res) => {
-  // The paymentMethod should be one of: "cod", "credit", "third_party"
-  const { paymentMethod, paymentDetails } = req.body;
+  const {
+    paymentMethod,
+    paymentDetails,
+    billingInfo,
+    shippingInfo,
+    orderItems,
+  } = req.body;
   if (!paymentMethod) {
     return res.status(400).json({ error: "Payment method is required" });
   }
 
-  // Get customer identifier from JWT token (set by authenticateJWT)
+  // Get customer identifier from JWT (set by authenticateJWT)
   const { identifier } = req.user;
   try {
-    // Ensure customer exists and has an active cart
+    // Ensure customer exists
     const customerRes = await db.query(
       "SELECT * FROM customers WHERE identifier = $1",
       [identifier]
@@ -30,48 +35,55 @@ exports.processCheckout = async (req, res) => {
     }
     const customer = customerRes.rows[0];
 
+    // Try to get a persisted cart from the database.
     const cartRes = await db.query(
       "SELECT * FROM carts WHERE customer_id = $1",
       [customer.id]
     );
-    if (cartRes.rows.length === 0) {
-      return res.status(400).json({ error: "No active cart found" });
-    }
-    const cart = cartRes.rows[0];
-
-    const itemsRes = await db.query(
-      `SELECT ci.*, p.price FROM cart_items ci
-       JOIN products p ON ci.product_id = p.id
-       WHERE ci.cart_id = $1`,
-      [cart.id]
-    );
-    const items = itemsRes.rows;
-    if (items.length === 0) {
-      return res.status(400).json({ error: "Cart is empty" });
-    }
-
-    // Create a new order registering the selected payment method with a "pending" status
-    const orderRes = await db.query(
-      "INSERT INTO orders (customer_id, payment_method, status) VALUES ($1, $2, $3) RETURNING *",
-      [customer.id, paymentMethod, "pending"]
-    );
-    const order = orderRes.rows[0];
-
-    // Insert each item as an order item
-    for (let item of items) {
-      await db.query(
-        "INSERT INTO order_items (order_id, product_id, quantity, price) VALUES ($1, $2, $3, $4)",
-        [order.id, item.product_id, item.quantity, item.price]
+    let items = [];
+    if (cartRes.rows.length > 0) {
+      // If the cart exists, grab the items
+      const cart = cartRes.rows[0];
+      const itemsRes = await db.query(
+        `SELECT ci.*, p.price FROM cart_items ci
+         JOIN products p ON ci.product_id = p.id
+         WHERE ci.cart_id = $1`,
+        [cart.id]
       );
+      items = itemsRes.rows;
+    }
+    // If no cart items exist on server, use orderItems provided from the client.
+    if (items.length === 0 && orderItems && orderItems.length > 0) {
+      // For each order item, verify the current price from the database.
+      for (const item of orderItems) {
+        const productRes = await db.query(
+          "SELECT price FROM products WHERE id = $1",
+          [item.id]
+        );
+        if (productRes.rows.length === 0) {
+          return res
+            .status(400)
+            .json({ error: `Product ${item.id} not found` });
+        }
+        // Use the latest price from the product table.
+        items.push({
+          product_id: item.id,
+          quantity: item.quantity,
+          price: productRes.rows[0].price,
+        });
+      }
     }
 
-    // Process the payment based on the method selected
+    // Fail if no items available to order.
+    if (items.length === 0) {
+      return res.status(400).json({ error: "No items to checkout" });
+    }
+
+    // Process payment based on paymentMethod
     let paymentResult = { success: false };
     if (paymentMethod === "cod") {
       paymentResult = { success: true, message: "Cash on Delivery selected" };
-      // COD: payment to be collected on delivery
     } else if (paymentMethod === "credit") {
-      // Simulate on-site credit card processing
       if (!paymentDetails || !paymentDetails.cardNumber) {
         return res
           .status(400)
@@ -82,7 +94,6 @@ exports.processCheckout = async (req, res) => {
         message: "Credit card payment processed",
       };
     } else if (paymentMethod === "third_party") {
-      // Process payment via a third party vendor
       if (!paymentDetails || !paymentDetails.signedInfo) {
         return res
           .status(400)
@@ -96,21 +107,40 @@ exports.processCheckout = async (req, res) => {
       return res.status(400).json({ error: "Invalid payment method" });
     }
 
-    // Update order status based on the payment outcome:
-    const finalStatus = paymentMethod === "cod" ? "pending" : "paid";
-    await db.query("UPDATE orders SET status = $1 WHERE id = $2", [
-      finalStatus,
-      order.id,
-    ]);
+    // Create a new order including billing and shipping info
+    const orderRes = await db.query(
+      `INSERT INTO orders 
+       (customer_id, payment_method, status, billing_info, shipping_info) 
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [
+        customer.id,
+        paymentMethod,
+        paymentMethod === "cod" ? "pending" : "paid",
+        JSON.stringify(billingInfo),
+        JSON.stringify(shippingInfo),
+      ]
+    );
+    const order = orderRes.rows[0];
 
-    // Clear the cart once checkout is complete
-    await db.query("DELETE FROM cart_items WHERE cart_id = $1", [cart.id]);
+    // Insert each order item
+    for (let item of items) {
+      await db.query(
+        "INSERT INTO order_items (order_id, product_id, quantity, price) VALUES ($1, $2, $3, $4)",
+        [order.id, item.product_id, item.quantity, item.price]
+      );
+    }
+
+    // If a persisted cart exists, clear it after checkout
+    if (cartRes.rows.length > 0) {
+      const cart = cartRes.rows[0];
+      await db.query("DELETE FROM cart_items WHERE cart_id = $1", [cart.id]);
+    }
 
     res.json({
       success: true,
       orderId: order.id,
       paymentResult,
-      status: finalStatus,
+      status: order.status,
     });
   } catch (err) {
     console.error(err);

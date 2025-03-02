@@ -6,6 +6,21 @@ const Checkout = () => {
   const { cart, clearCart } = useContext(CartContext);
   const [paymentMethod, setPaymentMethod] = useState("cod");
   const [paymentDetails, setPaymentDetails] = useState({});
+  const [billingInfo, setBillingInfo] = useState({
+    fullName: "",
+    email: "",
+    address: "",
+    city: "",
+    state: "",
+    zip: "",
+  });
+  const [shippingInfo, setShippingInfo] = useState({
+    fullName: "",
+    address: "",
+    city: "",
+    state: "",
+    zip: "",
+  });
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
   const [authToken, setAuthToken] = useState("");
@@ -13,7 +28,6 @@ const Checkout = () => {
 
   // Step 1: Send OTP
   const handleSendOtp = async () => {
-    // For demonstration, prompt the user for their identifier (phone or email)
     const identifier = prompt("Enter your phone or email to receive OTP:");
     if (!identifier) return;
     const response = await fetch("http://localhost:3000/api/auth/otp", {
@@ -32,7 +46,6 @@ const Checkout = () => {
 
   // Step 2: Verify OTP and receive a JWT token
   const handleVerifyOtp = async () => {
-    // Ask for identifier again for verification (could be streamlined in a real app)
     const identifier = prompt(
       "Enter your phone or email again for verification:"
     );
@@ -51,20 +64,28 @@ const Checkout = () => {
     }
   };
 
-  // Step 3: Process Checkout after OTP verification and payment info input
+  // Step 3: Process Checkout after OTP verification, payment info, and billing/shipping info input
   const handleCheckout = async () => {
     if (!authToken) {
       alert("Please verify OTP before checkout.");
       return;
     }
-    // Send checkout request to backend using the authentication token
+    // Build order payload using local cart items even if empty
+    const orderPayload = {
+      orderItems: cart, // send the local cart items (could be empty)
+      paymentMethod,
+      paymentDetails,
+      billingInfo,
+      shippingInfo, // optional shipping info; may be empty object if not provided
+    };
+
     const response = await fetch("http://localhost:3000/api/checkout", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: "Bearer " + authToken,
       },
-      body: JSON.stringify({ paymentMethod, paymentDetails }),
+      body: JSON.stringify(orderPayload),
     });
     const data = await response.json();
     if (data.success) {
@@ -93,6 +114,102 @@ const Checkout = () => {
             <button onClick={handleVerifyOtp}>Verify OTP</button>
           </div>
         )}
+      </section>
+
+      <section>
+        <h2>Billing Information</h2>
+        <input
+          type="text"
+          placeholder="Full Name"
+          value={billingInfo.fullName}
+          onChange={(e) =>
+            setBillingInfo({ ...billingInfo, fullName: e.target.value })
+          }
+        />
+        <input
+          type="email"
+          placeholder="Email"
+          value={billingInfo.email}
+          onChange={(e) =>
+            setBillingInfo({ ...billingInfo, email: e.target.value })
+          }
+        />
+        <input
+          type="text"
+          placeholder="Address"
+          value={billingInfo.address}
+          onChange={(e) =>
+            setBillingInfo({ ...billingInfo, address: e.target.value })
+          }
+        />
+        <input
+          type="text"
+          placeholder="City"
+          value={billingInfo.city}
+          onChange={(e) =>
+            setBillingInfo({ ...billingInfo, city: e.target.value })
+          }
+        />
+        <input
+          type="text"
+          placeholder="State"
+          value={billingInfo.state}
+          onChange={(e) =>
+            setBillingInfo({ ...billingInfo, state: e.target.value })
+          }
+        />
+        <input
+          type="text"
+          placeholder="ZIP"
+          value={billingInfo.zip}
+          onChange={(e) =>
+            setBillingInfo({ ...billingInfo, zip: e.target.value })
+          }
+        />
+      </section>
+
+      <section>
+        <h2>Shipping Information (Optional)</h2>
+        <input
+          type="text"
+          placeholder="Full Name"
+          value={shippingInfo.fullName}
+          onChange={(e) =>
+            setShippingInfo({ ...shippingInfo, fullName: e.target.value })
+          }
+        />
+        <input
+          type="text"
+          placeholder="Address"
+          value={shippingInfo.address}
+          onChange={(e) =>
+            setShippingInfo({ ...shippingInfo, address: e.target.value })
+          }
+        />
+        <input
+          type="text"
+          placeholder="City"
+          value={shippingInfo.city}
+          onChange={(e) =>
+            setShippingInfo({ ...shippingInfo, city: e.target.value })
+          }
+        />
+        <input
+          type="text"
+          placeholder="State"
+          value={shippingInfo.state}
+          onChange={(e) =>
+            setShippingInfo({ ...shippingInfo, state: e.target.value })
+          }
+        />
+        <input
+          type="text"
+          placeholder="ZIP"
+          value={shippingInfo.zip}
+          onChange={(e) =>
+            setShippingInfo({ ...shippingInfo, zip: e.target.value })
+          }
+        />
       </section>
 
       <section>
@@ -175,9 +292,9 @@ const Checkout = () => {
       <button onClick={handleCheckout}>Place Order</button>
 
       <section>
-        <h2>Your Cart</h2>
+        <h2>Your Order Summary</h2>
         {cart.length === 0 ? (
-          <p>Your cart is empty.</p>
+          <p>You have no items in your local cart.</p>
         ) : (
           <ul>
             {cart.map((item) => (
