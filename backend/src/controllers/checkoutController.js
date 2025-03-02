@@ -67,7 +67,7 @@ exports.processCheckout = async (req, res) => {
       for (const item of orderItems) {
         const productRes = await db.query(
           "SELECT price FROM products WHERE id = $1",
-          [item.id]
+          [item.product_id]
         );
         if (productRes.rows.length === 0) {
           return res
@@ -76,7 +76,7 @@ exports.processCheckout = async (req, res) => {
         }
         // Use the latest price from the product table.
         items.push({
-          product_id: item.id,
+          product_id: item.product_id,
           quantity: item.quantity,
           price: productRes.rows[0].price,
         });

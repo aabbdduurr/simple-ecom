@@ -86,6 +86,11 @@ const Checkout = () => {
       paymentDetails,
       billingInfo,
       shippingInfo,
+      orderItems: cart.map((item) => ({
+        product_id: item.id,
+        quantity: item.quantity,
+        price: item.price,
+      })),
     };
 
     const response = await fetch("http://localhost:3000/api/checkout", {
