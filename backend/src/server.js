@@ -15,9 +15,14 @@ app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*"); // adjust for production
   res.header(
     "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept"
+    "Origin, X-Requested-With, Content-Type, Accept, Authorization" // Added Authorization header
   );
-  next();
+  // For preflight requests
+  if (req.method === "OPTIONS") {
+    res.sendStatus(200);
+  } else {
+    next();
+  }
 });
 
 app.use("/api/categories", categoryRoutes);

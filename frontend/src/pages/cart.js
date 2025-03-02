@@ -1,14 +1,13 @@
 import React, { useContext } from "react";
 import Layout from "../components/Layout";
 import { CartContext } from "../components/CartContext";
-import { useNavigate } from "react-router-dom";
 
 const Cart = () => {
   const { cart } = useContext(CartContext);
-  const navigate = useNavigate();
 
+  // Since we're not using a Router, simply change location
   const handleProceedToCheckout = () => {
-    navigate("/checkout");
+    window.location.href = "/checkout";
   };
 
   return (

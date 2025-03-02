@@ -1,4 +1,4 @@
-import React, { useContext, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import Layout from "../components/Layout";
 import { CartContext } from "../components/CartContext";
 
@@ -26,7 +26,16 @@ const Checkout = () => {
   const [authToken, setAuthToken] = useState("");
   const [message, setMessage] = useState("");
 
-  // Step 1: Send OTP
+  // On mount, check if a valid JWT token is available in localStorage.
+  useEffect(() => {
+    const storedToken = localStorage.getItem("authToken");
+    if (storedToken) {
+      setAuthToken(storedToken);
+      setMessage("You are already authenticated.");
+    }
+  }, []);
+
+  // Step 1: Send OTP if no valid token is available
   const handleSendOtp = async () => {
     const identifier = prompt("Enter your phone or email to receive OTP:");
     if (!identifier) return;
@@ -44,7 +53,7 @@ const Checkout = () => {
     }
   };
 
-  // Step 2: Verify OTP and receive a JWT token
+  // Step 2: Verify OTP and receive a JWT token then save it to localStorage
   const handleVerifyOtp = async () => {
     const identifier = prompt(
       "Enter your phone or email again for verification:"
@@ -58,25 +67,25 @@ const Checkout = () => {
     const data = await response.json();
     if (data.success) {
       setAuthToken(data.token);
+      localStorage.setItem("authToken", data.token);
       setMessage("OTP verified. You are now authenticated.");
     } else {
       setMessage("OTP verification failed: " + data.error);
     }
   };
 
-  // Step 3: Process Checkout after OTP verification, payment info, and billing/shipping info input
+  // Step 3: Process Checkout with OTP verification, payment info, billing, and shipping information
   const handleCheckout = async () => {
     if (!authToken) {
       alert("Please verify OTP before checkout.");
       return;
     }
-    // Build order payload using local cart items even if empty
+    // Build the order payload with billing and shipping info
     const orderPayload = {
-      orderItems: cart, // send the local cart items (could be empty)
       paymentMethod,
       paymentDetails,
       billingInfo,
-      shippingInfo, // optional shipping info; may be empty object if not provided
+      shippingInfo,
     };
 
     const response = await fetch("http://localhost:3000/api/checkout", {
@@ -101,9 +110,10 @@ const Checkout = () => {
       <h1>Checkout</h1>
       <section>
         <h2>OTP Authentication</h2>
-        {!otpSent ? (
+        {!authToken && !otpSent && (
           <button onClick={handleSendOtp}>Send OTP</button>
-        ) : (
+        )}
+        {!authToken && otpSent && (
           <div>
             <input
               type="text"
@@ -217,6 +227,7 @@ const Checkout = () => {
         <label>
           <input
             type="radio"
+            name="payment"
             value="cod"
             checked={paymentMethod === "cod"}
             onChange={(e) => setPaymentMethod(e.target.value)}
@@ -226,6 +237,7 @@ const Checkout = () => {
         <label>
           <input
             type="radio"
+            name="payment"
             value="credit"
             checked={paymentMethod === "credit"}
             onChange={(e) => setPaymentMethod(e.target.value)}
@@ -235,6 +247,7 @@ const Checkout = () => {
         <label>
           <input
             type="radio"
+            name="payment"
             value="third_party"
             checked={paymentMethod === "third_party"}
             onChange={(e) => setPaymentMethod(e.target.value)}
@@ -292,9 +305,9 @@ const Checkout = () => {
       <button onClick={handleCheckout}>Place Order</button>
 
       <section>
-        <h2>Your Order Summary</h2>
+        <h2>Your Cart</h2>
         {cart.length === 0 ? (
-          <p>You have no items in your local cart.</p>
+          <p>Your cart is empty.</p>
         ) : (
           <ul>
             {cart.map((item) => (

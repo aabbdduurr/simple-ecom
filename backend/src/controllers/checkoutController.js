@@ -31,7 +31,16 @@ exports.processCheckout = async (req, res) => {
       [identifier]
     );
     if (customerRes.rows.length === 0) {
-      return res.status(400).json({ error: "Customer not found" });
+      // create a new customer if not found
+      const newCustomerRes = await db.query(
+        "INSERT INTO customers (identifier) VALUES ($1) RETURNING *",
+        [identifier]
+      );
+      if (newCustomerRes.rows.length === 0) {
+        return res.status(500).json({ error: "Failed to create customer" });
+      }
+      // Use the newly created customer
+      customerRes.rows.push(newCustomerRes.rows[0]);
     }
     const customer = customerRes.rows[0];
 
