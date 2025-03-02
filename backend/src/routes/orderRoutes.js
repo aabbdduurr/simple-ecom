@@ -3,6 +3,6 @@ const router = express.Router();
 const orderController = require("../controllers/orderController");
 const { authenticateJWT } = require("../middleware/authMiddleware");
 
-router.post("/checkout", authenticateJWT, orderController.checkout);
+router.post("/checkout", orderController.checkout);
 
 module.exports = router;

@@ -3,8 +3,8 @@ const router = express.Router();
 const cartController = require("../controllers/cartController");
 const { authenticateJWT } = require("../middleware/authMiddleware");
 
-router.get("/", authenticateJWT, cartController.getCart); // Pass ?identifier= in query string
-router.post("/add", authenticateJWT, cartController.addToCart);
-router.post("/clear", authenticateJWT, cartController.clearCart);
+router.get("/", cartController.getCart); // Pass ?identifier= in query string
+router.post("/add", cartController.addToCart);
+router.post("/clear", cartController.clearCart);
 
 module.exports = router;
