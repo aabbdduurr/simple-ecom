@@ -1,9 +1,11 @@
 import React, { useContext } from "react";
 import Layout from "../components/Layout";
 import { CartContext } from "../components/CartContext";
+import { useNavigate } from "react-router-dom";
 
 const Cart = () => {
   const { cart } = useContext(CartContext);
+  const navigate = useNavigate();
 
   const handleProceedToCheckout = () => {
     navigate("/checkout");
